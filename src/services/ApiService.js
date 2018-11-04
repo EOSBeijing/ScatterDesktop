@@ -14,7 +14,7 @@ import PermissionService from '../services/PermissionService';
 import KeyPairService from '../services/KeyPairService';
 import ResourceService from '../services/ResourceService';
 import PluginRepository from '../plugins/PluginRepository';
-import {Blockchains} from '../models/Blockchains';
+import {Blockchains, BlockchainsArray} from '../models/Blockchains';
 
 import Keypair from '../models/Keypair';
 import Identity from '../models/Identity';
@@ -25,13 +25,12 @@ import Network from '../models/Network'
 
 const {remote} = window.require('electron');
 remote.getGlobal('appShared').ApiWatcher = (deepLink) => {
-    console.log('using api from deep link', deepLink);
     ApiService.handleDeepLink(deepLink);
 };
 
 export default class ApiService {
 
-    static handleDeepLink(deepLink){
+    static async handleDeepLink(deepLink){
         if(!deepLink) return;
         let [type, payload] = deepLink.toString().split('scatter://')[1].split('/?payload=');
         type = type.replace('/', '');
@@ -42,11 +41,22 @@ export default class ApiService {
         // Special case for transfers which just makes URLs prettier
         if(type === 'transfer'){
             type = 'requestTransfer';
-            let [to, amount, blockchain, chainId, memo] = payload.split('/');
-            if(!to || !blockchain || !chainId) return false;
-            if(!memo) memo = '';
+            let [to, amount, memo, chainId] = payload.split('/');
+            if(!to || !to.length) return false;
 
-            const plugin = PluginRepository.plugin(blockchain);
+            // Inferring blockchain from recipient
+            let blockchain, plugin;
+            BlockchainsArray.map(({value}) => {
+                if(blockchain) return;
+                plugin = PluginRepository.plugin(value);
+                if(plugin.isValidRecipient(to)) blockchain = value;
+            });
+            if(!blockchain) return false;
+
+            if(!chainId || !chainId.length) chainId = (await PluginRepository.plugin(blockchain).getEndorsedNetwork()).chainId;
+            if(!memo) memo = '';
+            if(!amount || !amount.length) amount = 0;
+
             const token = plugin.defaultToken();
             const decimals = plugin.defaultDecimals();
 
