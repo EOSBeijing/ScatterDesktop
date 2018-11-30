@@ -18,12 +18,12 @@ import {Blockchains, BlockchainsArray} from '../models/Blockchains';
 
 import Keypair from '../models/Keypair';
 import Identity from '../models/Identity';
-import {IdentityRequiredFields} from '../models/Identity';
 import Account from '../models/Account';
 import Error from '../models/errors/Error'
 import Network from '../models/Network'
 
 const {remote} = window.require('electron');
+const NotificationService = remote.getGlobal('appShared').NotificationService;
 remote.getGlobal('appShared').ApiWatcher = (deepLink) => {
     ApiService.handleDeepLink(deepLink);
 };
@@ -330,7 +330,7 @@ export default class ApiService {
         return new Promise(async resolve => {
 
             const {payload} = request;
-            const {origin, requiredFields, blockchain} = request.payload;
+            const {origin, requiredFields, blockchain} = payload;
 
             const possibleId = PermissionService.identityFromPermissions(origin, false);
             if(!possibleId) return resolve({id:request.id, result:Error.identityMissing()});
@@ -367,6 +367,7 @@ export default class ApiService {
                 const signatures = await Promise.all(participants.map(x => {
                     if(KeyPairService.isHardware(x.publicKey)){
                         const keypair = KeyPairService.getKeyPairFromPublicKey(x.publicKey);
+                        keypair.external.interface.setAddressIndex(keypair.external.addressIndex);
                         return keypair.external.interface.sign(x.publicKey, payload, payload.abi, network);
                     } else return plugin.signer(payload, x.publicKey)
                 }));
@@ -390,6 +391,10 @@ export default class ApiService {
                 && (!needToSelectLocation
                 || needToSelectLocation && identity.locations.length === 1)
                 && PermissionService.isWhitelistedTransaction(origin, identity, participants, payload.messages, requiredFields)){
+
+                if(store.state.scatter.settings.showNotifications)
+                    NotificationService.pushNotification('Signed Transaction', `${origin} - ${participants.map(x => x.sendable()).join(',')}`);
+
                 return await signAndReturn(identity.locations[0]);
             }
 

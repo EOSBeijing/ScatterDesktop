@@ -22,14 +22,10 @@
 
         <section v-if="selectedOption" style="flex:3; overflow:hidden; display:flex; flex-direction: column;">
             <figure class="panel-head">
-                <section class="version">
-                    Scatter Desktop v{{version}}
-                    <figure class="update-button" v-if="needsUpdate" @click="openUpdateLink">Update Available</figure>
-                </section>
-                <span class="console fa fa-code" @click="openConsole"></span>
             </figure>
             <section class="transitioner">
                 <transition name="slide-left" mode="out-in">
+                    <settings-general v-if="selectedOption.name === settingsOptions.GENERAL.name"></settings-general>
                     <settings-language v-if="selectedOption.name === settingsOptions.LANGUAGE.name"></settings-language>
                     <settings-explorer v-if="selectedOption.name === settingsOptions.EXPLORER.name"></settings-explorer>
                     <settings-networks v-if="selectedOption.name === settingsOptions.NETWORKS.name"></settings-networks>
@@ -60,6 +56,7 @@
     import ElectronHelpers from '../util/ElectronHelpers'
 
     const SettingsOptions = {
+        GENERAL:{ flash:false, locked:false, name:'General', description:'General Scatter settings.' },
         LANGUAGE:{ flash:false, locked:false, name:'Language', description:'Set Scatter\s language.' },
         EXPLORER:{ flash:false, locked:false, name:'Explorers', description:'Select Preferred Block Explorers.' },
         PIN:{ flash:false, locked:true, name:'PIN', description:'Set or disabled your secondary PIN.' },
@@ -75,7 +72,6 @@
             settingsOptions:SettingsOptions,
             selectedOption:null,
             unlocked:false,
-            needsUpdate:false,
         }},
         computed: {
             ...mapState([
@@ -86,16 +82,9 @@
             ])
         },
         mounted(){
-            this.selectedOption = SettingsOptions.LANGUAGE;
-            UpdateService.needsUpdateNoPrompt().then(needsUpdate => {
-                this.needsUpdate = needsUpdate ? needsUpdate[1] : false;
-            })
+            this.selectedOption = SettingsOptions.GENERAL;
         },
         methods: {
-            openUpdateLink(){
-                ElectronHelpers.openLinkInBrowser(this.needsUpdate);
-            },
-            openConsole(){ WindowService.openTools(); },
             selectOption(option){
                 if((option.locked || false) && !this.unlocked) {
                     return this.unlock(option);
@@ -105,7 +94,7 @@
             unlock(option){
                 PopupService.push(
                     Popup.textPrompt("Confirm Password", "Enter your current password.", "unlock", "Okay", {
-                        placeholder:'Enter Password',
+                        placeholder:'Enter Password or Backup Phrase',
                         type:'password'
                     }, async password => {
                         if(!password || !password.length) return;
